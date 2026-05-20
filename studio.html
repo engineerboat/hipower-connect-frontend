@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HI-Power Studio Monitor</title>
+</head>
+
+<body>
+
+<h1>HI-Power 102.7 FM Studio Dashboard</h1>
+
+<h2 id="reporterStatus">No Reporter Connected</h2>
+
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+<script>
+
+const socket = io("https://hipower-connect-backend.onrender.com");
+
+const reporterStatus = document.getElementById("reporterStatus");
+
+socket.on("audio-status", (data) => {
+
+    if(data.connected){
+
+        reporterStatus.innerText = "Reporter Connected Live";
+    }
+});
+
+</script>
+
+</body>
+</html>
