@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HI-Power Reporter Connect</title>
+</head>
+
+<body>
+
+<h1>HI-Power 102.7 FM Reporter Connect</h1>
+
+<button id="connectBtn">Connect Microphone</button>
+
+<p id="status">Disconnected</p>
+
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+<script>
+
+const socket = io("https://hipower-connect-backend.onrender.com");
+
+const connectBtn = document.getElementById("connectBtn");
+
+const status = document.getElementById("status");
+
+connectBtn.onclick = async () => {
+
+    try {
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true
+        });
+
+        status.innerText = "Microphone Connected";
+
+        socket.emit("audio-status", {
+            connected: true
+        });
+
+        console.log(stream);
+
+    } catch(err) {
+
+        status.innerText = "Microphone Permission Denied";
+
+        console.log(err);
+    }
+};
+
+</script>
+
+</body>
+</html>
