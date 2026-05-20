@@ -10,21 +10,22 @@
 
 <h2 id="reporterStatus">No Reporter Connected</h2>
 
+<!-- Socket.IO Library -->
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
 <script>
 
 const socket = io("https://hipower-connect-backend.onrender.com");
 
 socket.on("connect", () => {
-
     console.log("Studio connected to backend");
-
 });
 
 const reporterStatus = document.getElementById("reporterStatus");
 
 socket.on("audio-status", (data) => {
 
-    console.log("Received event:", data);
+    console.log("Received:", data);
 
     if(data.connected){
 
