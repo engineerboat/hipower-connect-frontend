@@ -18,6 +18,10 @@
 
 const socket = io("https://hipower-connect-backend.onrender.com");
 
+socket.on("connect", () => {
+    console.log("Reporter connected to backend");
+});
+
 const connectBtn = document.getElementById("connectBtn");
 
 const status = document.getElementById("status");
@@ -32,11 +36,11 @@ connectBtn.onclick = async () => {
 
         status.innerText = "Microphone Connected";
 
+        console.log("Sending audio-status");
+
         socket.emit("audio-status", {
             connected: true
         });
-
-        console.log(stream);
 
     } catch(err) {
 
