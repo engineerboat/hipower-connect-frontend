@@ -268,7 +268,7 @@ const [connected, setConnected] = useState(false);
     userGainRef.current = userGain;
 
     const pttGain = audioContext.createGain();
-    pttGain.gain.value = 0;
+    pttGain.gain.value = 1;
     pttGainRef.current = pttGain;
 
     // RESTORE TRANSMIT STATE
