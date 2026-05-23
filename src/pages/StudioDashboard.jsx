@@ -618,6 +618,57 @@ useEffect(() => {
 
   }, [reporterList]);
 
+ // =========================
+// 🔥 REAL AUDIO LEVEL ENGINE (NEW)
+// =========================
+useEffect(() => {
+  let raf;
+
+  const data = new Uint8Array(1024);
+
+  const updateChannels = () => {
+    const channels = sourceNodeRef.current;
+    if (!channels) {
+      raf = requestAnimationFrame(updateChannels);
+      return;
+    }
+
+    for (const id in channels) {
+      const ch = channels[id];
+      if (!ch?.analyser) continue;
+
+      ch.analyser.getByteFrequencyData(data);
+
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = data[i] / 255;
+        sum += v * v;
+      }
+
+      const rms = Math.sqrt(sum / data.length);
+      const level = Math.min(100, Math.round(rms * 140));
+
+      // 🔥 UPDATE UI STATE
+      setReporters(prev => {
+        const next = { ...prev };
+        if (next[id]) {
+          next[id] = {
+            ...next[id],
+            level
+          };
+        }
+        return next;
+      });
+    }
+
+    raf = requestAnimationFrame(updateChannels);
+  };
+
+  updateChannels();
+
+  return () => cancelAnimationFrame(raf);
+}, []);
+
   // =========================
   // CANVAS ENGINE
   // =========================
