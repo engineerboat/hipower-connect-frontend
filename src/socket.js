@@ -1,14 +1,14 @@
 import { io } from "socket.io-client";
 
 // =========================
-// AUTO ENV BACKEND SWITCH
+// VITE ENV FIX
 // =========================
 const SERVER_URL =
-  process.env.REACT_APP_SOCKET_URL ||
+  import.meta.env.VITE_SOCKET_URL ||
   "https://hipower-connect-backend.onrender.com";
 
 // =========================
-// SOCKET INSTANCE (SINGLETON SAFE)
+// SOCKET INSTANCE
 // =========================
 export const socket = io(SERVER_URL, {
   transports: ["websocket"],
@@ -18,13 +18,11 @@ export const socket = io(SERVER_URL, {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   timeout: 20000,
-
-  // IMPORTANT for mobile stability
   forceNew: false
 });
 
 // =========================
-// DEBUG LOGGING (OPTIONAL BUT USEFUL)
+// DEBUG LOGGING
 // =========================
 socket.on("connect", () => {
   console.log("🟢 SOCKET CONNECTED:", socket.id);
