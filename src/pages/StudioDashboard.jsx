@@ -91,91 +91,160 @@ export default function StudioDashboard() {
   // =========================
   // SOCKET CORE
   // =========================
-  useEffect(() => {
+  // =========================
+// SOCKET CORE (PRODUCTION READY)
+// =========================
+useEffect(() => {
+  if (!socket) return;
 
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+  // =========================
+  // CONNECT / DISCONNECT
+  // =========================
+  const onConnect = () => {
+    setConnected(true);
 
-    const onAudioStatus = (data) => {
+    // 🔁 IMPORTANT: re-register on reconnect
+    if (reporterCode && reporterName) {
+      socket.emit("register-reporter", {
+        code: reporterCode,
+        name: reporterName
+      });
+    }
+  };
 
-  if (!data?.code) return;
+  const onDisconnect = () => {
+    setConnected(false);
 
-  const id = data.code;
-
-  setReporters(prev => {
-
-    const existing = prev[id] || {};
-
-    return {
-      ...prev,
-
-      [id]: {
-        ...existing,
-
-        id,
-        code: id,
-        name: data.name || existing.name || id,
-
-        level: data.level ?? 0,
-
-        transmitting: !!data.transmitting,
-
-        connected: true,
-
-        lastSeen: Date.now()
-      }
-    };
-  });
-};
-
-    const onStudioCommand = (cmd) => {
-      if (!cmd?.type) return;
-
-      switch (cmd.type) {
-
-        case "MUTE_ALL":
-            setMasterMute(true);
-            break;
-
-        case "UNMUTE_ALL":
-            setMasterMute(false);
-            break;
-
-        case "SOLO":
-            setSoloMode(true);
-            setOnAirId(cmd.target);
-            break;
-
-        case "SOLO_OFF":
-            setSoloMode(false);
-            setOnAirId(null);
-            break;
-
-        case "ROUTE_OUTPUT":
-            setOutputRoute(cmd.target);
-            break;
-
-        case "PANIC_CUT":
-            setMasterMute(true);
-            setSoloMode(false);
-            setOnAirId(null);
-            break;
+    // mark self offline safely
+    if (reporterCode) {
+      setReporters(prev => ({
+        ...prev,
+        [reporterCode]: {
+          ...prev[reporterCode],
+          connected: false
         }
-    };
+      }));
+    }
+  };
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("audio-status", onAudioStatus);
-    socket.on("studio-command", onStudioCommand);
+  // =========================
+  // LIVE AUDIO STATUS (REALTIME FEED)
+  // =========================
+  const onAudioStatus = (data) => {
+    if (!data?.code) return;
 
-    return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off("audio-status", onAudioStatus);
-      socket.off("studio-command", onStudioCommand);
-    };
+    const id = data.code;
 
-  }, []);
+    setReporters(prev => {
+      const existing = prev[id] || {};
+
+      return {
+        ...prev,
+        [id]: {
+          id,
+          code: id,
+
+          name: data.name ?? existing.name ?? id,
+
+          level:
+            typeof data.level === "number"
+              ? data.level
+              : existing.level || 0,
+
+          transmitting: Boolean(data.transmitting),
+
+          connected: true,
+
+          lastSeen: Date.now()
+        }
+      };
+    });
+  };
+
+  // =========================
+  // STUDIO FULL STATE SYNC (SOURCE OF TRUTH)
+  // =========================
+  const onStudioState = (state) => {
+    if (!state?.reporters) return;
+
+    setReporters(prev => {
+      const merged = { ...prev };
+
+      for (const id in state.reporters) {
+        const r = state.reporters[id];
+
+        merged[id] = {
+          ...(merged[id] || {}),
+          ...r,
+          connected: true,
+          lastSeen: Date.now()
+        };
+      }
+
+      return merged;
+    });
+  };
+
+  // =========================
+  // STUDIO COMMANDS (MIX ENGINE CONTROL)
+  // =========================
+  const onStudioCommand = (cmd) => {
+    if (!cmd?.type) return;
+
+    switch (cmd.type) {
+      case "MUTE_ALL":
+        setMasterMute(true);
+        break;
+
+      case "UNMUTE_ALL":
+        setMasterMute(false);
+        break;
+
+      case "SOLO":
+        setSoloMode(true);
+        setOnAirId(cmd.target || null);
+        break;
+
+      case "SOLO_OFF":
+        setSoloMode(false);
+        setOnAirId(null);
+        break;
+
+      case "ROUTE_OUTPUT":
+        setOutputRoute(cmd.target || null);
+        break;
+
+      case "PANIC_CUT":
+        setMasterMute(true);
+        setSoloMode(false);
+        setOnAirId(null);
+        break;
+
+      default:
+        console.warn("Unknown studio command:", cmd);
+    }
+  };
+
+  // =========================
+  // SOCKET EVENTS
+  // =========================
+  socket.on("connect", onConnect);
+  socket.on("disconnect", onDisconnect);
+  socket.on("audio-status", onAudioStatus);
+  socket.on("studio-state", onStudioState);
+  socket.on("studio-command", onStudioCommand);
+
+  // =========================
+  // CLEANUP
+  // =========================
+  return () => {
+    socket.off("connect", onConnect);
+    socket.off("disconnect", onDisconnect);
+    socket.off("audio-status", onAudioStatus);
+    socket.off("studio-state", onStudioState);
+    socket.off("studio-command", onStudioCommand);
+  };
+}, [reporterCode, reporterName]);
 
   // =========================
 // WEBRTC AUDIO RECEIVER
