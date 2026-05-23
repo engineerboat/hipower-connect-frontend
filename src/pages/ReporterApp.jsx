@@ -607,74 +607,139 @@ destination.stream
 
     }
 
-    // =========================
-    // 9. METER LOOP (SAFE)
-    // =========================
+// =========================
+// 9. METER LOOP (STUDIO-GRADE)
+// =========================
 
-    const frequencyData =
-      new Uint8Array(
-        analyser.frequencyBinCount
-      );
+const updateMeter = () => {
+  const analyser = analyserRef.current;
+  if (!analyser) return;
 
-    const waveformData =
-      new Uint8Array(
-        analyser.fftSize
-      );
+  const freqBins = analyser.frequencyBinCount;
+  const fftSize = analyser.fftSize;
 
-    let lastGain = 1;
+  const frequencyData = new Uint8Array(freqBins);
+  const timeData = new Uint8Array(fftSize);
 
-    const updateMeter = () => {
+  analyser.getByteFrequencyData(frequencyData);
+  analyser.getByteTimeDomainData(timeData);
 
-      if (!analyserRef.current)
-        return;
+  // =========================
+  // 1. TRUE LOUDNESS (RMS)
+  // =========================
+  let sumSquares = 0;
 
-      analyser.getByteFrequencyData(
-        frequencyData
-      );
+  for (let i = 0; i < freqBins; i++) {
+    const v = frequencyData[i] / 255;
+    sumSquares += v * v;
+  }
 
-      let sum = 0;
+  const rms = Math.sqrt(sumSquares / freqBins);
 
-      for (
-        let i = 0;
-        i < frequencyData.length;
-        i++
-      ) {
+  // perceptual scaling (more natural for voice)
+  const normalizedLevel = Math.min(100, Math.round(rms * 140));
 
-        sum += frequencyData[i];
+  // =========================
+  // 2. PEAK DETECTION (CLIPPING STYLE)
+  // =========================
+  let peak = 0;
 
-      }
+  for (let i = 0; i < freqBins; i++) {
+    if (frequencyData[i] > peak) {
+      peak = frequencyData[i];
+    }
+  }
 
-      const avg =
-        sum /
-        frequencyData.length;
+  const peakLevel = Math.round((peak / 255) * 100);
 
-      const normalized =
-          Math.min(
-            100,
-            Math.round(
-              (avg / 255) * 100
-            )
-          );
+  // =========================
+  // 3. THROTTLE UI UPDATES (PREVENT LAG)
+  // =========================
+  updateMeter._tick = (updateMeter._tick || 0) + 1;
 
-        // =========================
-        // THROTTLED UI UPDATES
-        // =========================
+  if (updateMeter._tick % 3 === 0) {
+    levelRef.current = normalizedLevel;
 
-        if (!updateMeter.uiTick) {
-          updateMeter.uiTick = 0;
-        }
+    setLevel(normalizedLevel);
 
-        updateMeter.uiTick++;
+    // optional: expose peak if you want UI overload warning
+    // setPeakLevel(peakLevel);
+  }
 
-        if (updateMeter.uiTick % 4 === 0) {
+  // =========================
+  // 4. STEREO VU (LEFT / RIGHT)
+  // =========================
+  const L = analyserLRef.current;
+  const R = analyserRRef.current;
 
-          // update refs every frame
-          levelRef.current = normalized;
+  if (L && R) {
+    const lData = new Uint8Array(L.frequencyBinCount);
+    const rData = new Uint8Array(R.frequencyBinCount);
 
-          // only rerender occasionally
-          setLevel(normalized);
+    L.getByteFrequencyData(lData);
+    R.getByteFrequencyData(rData);
 
-        }
+    let lSum = 0;
+    let rSum = 0;
+
+    for (let i = 0; i < lData.length; i++) {
+      lSum += lData[i];
+      rSum += rData[i];
+    }
+
+    const leftVU = (lSum / lData.length / 255) * 100;
+    const rightVU = (rSum / rData.length / 255) * 100;
+
+    if (updateMeter._tick % 3 === 0) {
+      setLeftVU(Math.min(100, leftVU));
+      setRightVU(Math.min(100, rightVU));
+    }
+  } else {
+    setLeftVU(normalizedLevel);
+    setRightVU(normalizedLevel);
+  }
+
+  // =========================
+  // 5. WAVEFORM (SMOOTH OSCILLOSCOPE)
+  // =========================
+  const canvas = canvasRef.current;
+
+  if (canvas) {
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.beginPath();
+
+    const sliceWidth = canvas.width / timeData.length;
+    let x = 0;
+
+    for (let i = 0; i < timeData.length; i++) {
+      const v = timeData[i] / 128.0;
+      const y = (v * canvas.height) / 2;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+
+      x += sliceWidth;
+    }
+
+    // color logic: ON AIR = RED, idle = GREEN
+    ctx.strokeStyle = transmittingRef.current
+      ? "#ff3b30"
+      : "#22c55e";
+
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // =========================
+  // 6. LOOP CONTINUE (SAFE STOP)
+  // =========================
+  if (audioContextRef.current?.state !== "closed") {
+    animationRef.current = requestAnimationFrame(updateMeter);
+  }
+};
 
       // =========================
       // AGC
