@@ -55,6 +55,10 @@ export default function ReporterApp() {
   const analyserRRef = useRef(null);
   const peerRef = useRef(null);
 
+  // Refs so socket callbacks always read current values without stale closures
+  const reporterCodeRef = useRef("");
+  const reporterNameRef = useRef("");
+
   // =========================
   // LOAD DEVICES
   // =========================
@@ -568,9 +572,11 @@ export default function ReporterApp() {
   useEffect(() => {
     const onConnect = () => {
       setConnected(true);
-      console.log("REGISTERING REPORTER", reporterCode);
-      if (reporterCode && reporterName) {
-        socket.emit("register-reporter", { code: reporterCode, name: reporterName || "Reporter" });
+      const code = reporterCodeRef.current;
+      const name = reporterNameRef.current;
+      console.log("REGISTERING REPORTER", code);
+      if (code && name) {
+        socket.emit("register-reporter", { code, name: name || "Reporter" });
         setIsRegistered(true);
       }
     };
@@ -584,21 +590,23 @@ export default function ReporterApp() {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
     };
-  }, []);
+  }, []); // safe: reads via refs, not stale closure
 
   useEffect(() => { levelRef.current = level; }, [level]);
   useEffect(() => { transmittingRef.current = transmitting; }, [transmitting]);
+  useEffect(() => { reporterCodeRef.current = reporterCode; }, [reporterCode]);
+  useEffect(() => { reporterNameRef.current = reporterName; }, [reporterName]);
 
   useEffect(() => {
-    if (!connected || !audioConnected || !reporterCode) return;
+    if (!connected || !audioConnected || !reporterCodeRef.current) return;
     if (statusIntervalRef.current) {
       clearInterval(statusIntervalRef.current);
       statusIntervalRef.current = null;
     }
     statusIntervalRef.current = setInterval(() => {
       socket.emit("audio-status", {
-        code: reporterCode,
-        name: reporterName || "Reporter",
+        code: reporterCodeRef.current,
+        name: reporterNameRef.current || "Reporter",
         connected: true,
         level: levelRef.current,
         transmitting: transmittingRef.current,
