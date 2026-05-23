@@ -635,12 +635,10 @@ const updateMeter = () => {
   }
 
   const rms = Math.sqrt(sumSquares / freqBins);
-
-  // perceptual scaling (more natural for voice)
   const normalizedLevel = Math.min(100, Math.round(rms * 140));
 
   // =========================
-  // 2. PEAK DETECTION (CLIPPING STYLE)
+  // 2. PEAK DETECTION
   // =========================
   let peak = 0;
 
@@ -653,21 +651,17 @@ const updateMeter = () => {
   const peakLevel = Math.round((peak / 255) * 100);
 
   // =========================
-  // 3. THROTTLE UI UPDATES (PREVENT LAG)
+  // 3. UI THROTTLE
   // =========================
   updateMeter._tick = (updateMeter._tick || 0) + 1;
 
   if (updateMeter._tick % 3 === 0) {
     levelRef.current = normalizedLevel;
-
     setLevel(normalizedLevel);
-
-    // optional: expose peak if you want UI overload warning
-    // setPeakLevel(peakLevel);
   }
 
   // =========================
-  // 4. STEREO VU (LEFT / RIGHT)
+  // 4. STEREO VU
   // =========================
   const L = analyserLRef.current;
   const R = analyserRRef.current;
@@ -700,7 +694,7 @@ const updateMeter = () => {
   }
 
   // =========================
-  // 5. WAVEFORM (SMOOTH OSCILLOSCOPE)
+  // 5. WAVEFORM
   // =========================
   const canvas = canvasRef.current;
 
@@ -708,7 +702,6 @@ const updateMeter = () => {
     const ctx = canvas.getContext("2d");
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     ctx.beginPath();
 
     const sliceWidth = canvas.width / timeData.length;
@@ -724,7 +717,6 @@ const updateMeter = () => {
       x += sliceWidth;
     }
 
-    // color logic: ON AIR = RED, idle = GREEN
     ctx.strokeStyle = transmittingRef.current
       ? "#ff3b30"
       : "#22c55e";
@@ -734,217 +726,109 @@ const updateMeter = () => {
   }
 
   // =========================
-  // 6. LOOP CONTINUE (SAFE STOP)
+  // 6. LOOP CONTINUE
   // =========================
   if (audioContextRef.current?.state !== "closed") {
     animationRef.current = requestAnimationFrame(updateMeter);
   }
 };
 
-      // =========================
-      // AGC
-      // =========================
+// =========================
+// AGC (FIXED)
+// =========================
 
-      if (
-        agcEnabled &&
-        agcGainRef.current
-      ) {
+let lastGain = agcGainRef.current?.gain.value || 1;
 
-        if (avg < 40)
-          lastGain += 0.0015;
+if (agcEnabled && agcGainRef.current) {
+  const avg = normalizedLevel; // use RMS from meter loop
 
-        if (avg > 160)
-          lastGain -= 0.0015;
+  if (avg < 40) lastGain += 0.0015;
+  if (avg > 160) lastGain -= 0.0015;
 
-        lastGain =
-          Math.max(
-            0.1,
-            Math.min(lastGain, 3)
-          );
+  lastGain = Math.max(0.1, Math.min(lastGain, 3));
 
-        agcGainRef.current.gain.value =
-          lastGain;
+  agcGainRef.current.gain.value = lastGain;
+}
 
-      }
+// =========================
+// STEREO METERS (FIXED)
+// =========================
 
-      // =========================
-      // STEREO METERS
-      // =========================
+const L = analyserLRef.current;
+const R = analyserRRef.current;
 
-      const L =
-        analyserLRef.current;
+if (L && R) {
+  const left = new Uint8Array(L.frequencyBinCount);
+  const right = new Uint8Array(R.frequencyBinCount);
 
-      const R =
-        analyserRRef.current;
+  L.getByteFrequencyData(left);
+  R.getByteFrequencyData(right);
 
-      if (L && R) {
+  let leftSum = 0;
+  let rightSum = 0;
 
-        const left =
-          new Uint8Array(
-            L.frequencyBinCount
-          );
-
-        const right =
-          new Uint8Array(
-            R.frequencyBinCount
-          );
-
-        L.getByteFrequencyData(
-          left
-        );
-
-        R.getByteFrequencyData(
-          right
-        );
-
-        const leftAvg =
-          left.reduce(
-            (a, b) => a + b,
-            0
-          ) / left.length;
-
-        const rightAvg =
-          right.reduce(
-            (a, b) => a + b,
-            0
-          ) / right.length;
-
-        const leftLevel =
-          Math.min(
-            100,
-            (leftAvg / 255) * 100
-          );
-
-        const rightLevel =
-          Math.min(
-            100,
-            (rightAvg / 255) * 100
-          );
-
-        if (updateMeter.uiTick % 4 === 0) {
-
-          setLeftVU(leftLevel);
-
-          setRightVU(rightLevel);
-
-        }
-
-      } else {
-
-        setLeftVU(normalized);
-        setRightVU(normalized);
-
-      }
-
-      // =========================
-      // WAVEFORM
-      // =========================
-
-      analyser.getByteTimeDomainData(
-        waveformData
-      );
-
-      const canvas =
-        canvasRef.current;
-
-      if (canvas) {
-
-        const ctx =
-          canvas.getContext("2d");
-
-        ctx.clearRect(
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-
-        ctx.beginPath();
-
-        const sliceWidth =
-          canvas.width /
-          waveformData.length;
-
-        let x = 0;
-
-        for (
-          let i = 0;
-          i < waveformData.length;
-          i++
-        ) {
-
-          const v =
-            waveformData[i] / 128;
-
-          const y =
-            (v * canvas.height) / 2;
-
-          if (i === 0) {
-
-            ctx.moveTo(x, y);
-
-          } else {
-
-            ctx.lineTo(x, y);
-
-          }
-
-          x += sliceWidth;
-        }
-
-        ctx.strokeStyle =
-          transmittingRef.current
-            ? "#ff3b30"
-            : "#22c55e";
-
-        ctx.lineWidth = 2;
-
-        ctx.stroke();
-      }
-
-      if (audioContextRef.current?.state !== "closed") {
-
-        animationRef.current =
-          requestAnimationFrame(
-            updateMeter
-          );
-
-      }
-    };
-
-    updateMeter();
-
-    // =========================
-    // FINAL STATE
-    // =========================
-
-    setSocketConnected(true);
-    setAudioConnected(true);
-    setConnected(true);
-
-    console.log(
-      "✅ AUDIO ENGINE READY"
-    );
-
-  } catch (err) {
-
-    console.error(
-      "startAudio failed:",
-      err
-    );
-
-  } finally {
-
-    setTimeout(() => {
-
-      startingRef.current =
-        false;
-
-    }, 500);
-
+  for (let i = 0; i < left.length; i++) {
+    leftSum += left[i];
+    rightSum += right[i];
   }
-};
 
+  const leftLevel = (leftSum / left.length / 255) * 100;
+  const rightLevel = (rightSum / right.length / 255) * 100;
+
+  setLeftVU(Math.min(100, leftLevel));
+  setRightVU(Math.min(100, rightLevel));
+
+} else {
+  setLeftVU(normalizedLevel);
+  setRightVU(normalizedLevel);
+}
+
+// =========================
+// WAVEFORM (FIXED)
+// =========================
+
+const timeData = new Uint8Array(
+  analyser.fftSize
+);
+
+analyser.getByteTimeDomainData(timeData);
+
+const canvas = canvasRef.current;
+
+if (canvas) {
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
+
+  const sliceWidth = canvas.width / timeData.length;
+  let x = 0;
+
+  for (let i = 0; i < timeData.length; i++) {
+    const v = timeData[i] / 128.0;
+    const y = (v * canvas.height) / 2;
+
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+
+    x += sliceWidth;
+  }
+
+  ctx.strokeStyle = transmittingRef.current
+    ? "#ff3b30"
+    : "#22c55e";
+
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+// =========================
+// LOOP CONTINUE (SAFE)
+// =========================
+
+if (audioContextRef.current?.state !== "closed") {
+  animationRef.current = requestAnimationFrame(updateMeter);
+}
 //console.log("Recorder state:", mediaRecorderRef.current?.state);
 //console.log("Stream active:", streamRef.current?.active);
 
