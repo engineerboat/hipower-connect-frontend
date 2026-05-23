@@ -259,16 +259,27 @@ peer.ontrack = (event) => {
   // =========================
   const source = ctx.createMediaStreamSource(stream);
 
-  const channelGain = ctx.createGain();
-  channelGain.gain.value = 1;
+const channelGain = ctx.createGain();
+channelGain.gain.value = 1;
 
-  // optional: per-channel limiter (safe broadcast audio)
-  const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -10;
-  limiter.ratio.value = 6;
-  limiter.knee.value = 20;
-  limiter.attack.value = 0.003;
-  limiter.release.value = 0.25;
+// 🎯 NEW: PER TRACK ANALYSER (THIS IS THE REAL FIX)
+const trackAnalyser = ctx.createAnalyser();
+trackAnalyser.fftSize = 1024;
+
+// safety limiter
+const limiter = ctx.createDynamicsCompressor();
+limiter.threshold.value = -10;
+limiter.ratio.value = 6;
+limiter.knee.value = 20;
+limiter.attack.value = 0.003;
+limiter.release.value = 0.25;
+
+// AUDIO CHAIN (CORRECT ORDER)
+source
+  .connect(channelGain)
+  .connect(trackAnalyser)
+  .connect(limiter)
+  .connect(gainNodeRef.current.preGain);
 
   // =========================
   // STORE CHANNEL
