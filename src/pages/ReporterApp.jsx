@@ -158,6 +158,8 @@ const [connected, setConnected] = useState(false);
 
  const startAudio = async (forceDevice = selectedDevice) => {
 
+   console.log("🔥 startAudio CALLED", forceDevice);
+
   // =========================
   // 0. HARD REENTRY LOCK
   // =========================
