@@ -358,16 +358,69 @@ peer.ontrack = (event) => {
 }, []);
 
 useEffect(() => {
-  const unlock = async () => {
-    if (!audioContextRef.current) return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
 
-    await audioContextRef.current.resume();
-    console.log("Audio unlocked");
+  let unlocked = false;
+
+  const unlockAudio = async () => {
+    if (unlocked) return;
+
+    try {
+      let ctx = audioContextRef.current;
+
+      // =========================
+      // CREATE CONTEXT IF MISSING
+      // =========================
+      if (!ctx) {
+        ctx = new AudioContext();
+        audioContextRef.current = ctx;
+      }
+
+      // =========================
+      // RESUME CONTEXT
+      // =========================
+      if (ctx.state !== "running") {
+        await ctx.resume();
+      }
+
+      // =========================
+      // iOS / Safari HARD UNLOCK TRICK
+      // =========================
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+
+      // =========================
+      // MARK UNLOCKED
+      // =========================
+      unlocked = true;
+
+      console.log("🔓 AUDIO SYSTEM FULLY UNLOCKED");
+
+      // optional: emit event for system readiness
+      socket.emit?.("audio-unlocked");
+
+    } catch (err) {
+      console.warn("Audio unlock failed:", err);
+    }
   };
 
-  window.addEventListener("click", unlock, { once: true });
+  // =========================
+  // MULTI-TRIGGER UNLOCK (REAL-WORLD SAFE)
+  // =========================
+  const events = ["click", "touchstart", "keydown", "pointerdown"];
 
-  return () => window.removeEventListener("click", unlock);
+  events.forEach((evt) => {
+    window.addEventListener(evt, unlockAudio, { once: true });
+  });
+
+  return () => {
+    events.forEach((evt) => {
+      window.removeEventListener(evt, unlockAudio);
+    });
+  };
 }, []);
 
 useEffect(() => {
