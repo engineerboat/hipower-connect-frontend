@@ -582,23 +582,46 @@ useEffect(() => {
   if (!channels) return 0;
 
   let sum = 0;
-  let count = 0;
+  let weightSum = 0;
 
   for (const id in channels) {
     const ch = channels[id];
-
-    if (!ch?.gain) continue;
-
-    const level = reporters[id]?.level || 0;
+    if (!ch?.gain || !ch?.analyser) continue;
 
     const gainValue = ch.gain.gain.value;
 
+    // get real-time analyser data
+    const data = new Uint8Array(256);
+    ch.analyser.getByteFrequencyData(data);
+
+    let energy = 0;
+
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i] / 255;
+      energy += v * v;
+    }
+
+    // RMS level (broadcast accurate)
+    const rms = Math.sqrt(energy / data.length);
+
+    // scale to 0–100 with headroom control
+    const level = Math.min(100, rms * 140);
+
+    // ignore silent channels
+    if (level < 0.5) continue;
+
+    // apply gain weighting (true mixer behavior)
     sum += level * gainValue;
-    count++;
+    weightSum += gainValue;
   }
 
-  return count ? sum / count : 0;
-}, [reporters, soloMode, onAirId, outputRoute, masterMute]);
+  if (weightSum === 0) return 0;
+
+  const raw = sum / weightSum;
+
+  // 🔥 soft broadcast smoothing curve (prevents flicker spikes)
+  return Math.min(100, Math.round(raw));
+}, [masterMute, reporters]);
 
   // =========================
   // SYSTEM STATS
