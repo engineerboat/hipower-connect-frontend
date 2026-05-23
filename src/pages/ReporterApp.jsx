@@ -974,10 +974,9 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  if (!audioContextRef.current) return;
+  if (!selectedDevice) return;
 
-  // restart audio engine when mic changes
-  startAudio();
+  startAudio(selectedDevice);
 }, [selectedDevice]);
 
 useEffect(() => {
