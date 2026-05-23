@@ -709,6 +709,7 @@ useEffect(() => {
   preGain
     .connect(programGain)
     .connect(limiter)
+    .connect(analyser)
     .connect(destination);
 
   // speakers (program output)
