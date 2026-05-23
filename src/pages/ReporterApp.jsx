@@ -24,6 +24,8 @@ const [connected, setConnected] = useState(false);
   const [reporterName, setReporterName] = useState("");
   const [isRegistered, setIsRegistered] = useState(false);
 
+  const [micActive, setMicActive] = useState(false);
+
   const savedTransmit =
     localStorage.getItem("transmitting") === "true";
 
