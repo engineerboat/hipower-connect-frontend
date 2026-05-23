@@ -284,12 +284,13 @@ source
   // =========================
   // STORE CHANNEL
   // =========================
-  sourceNodeRef.current[trackId] = {
-    source,
-    gain: channelGain,
-    limiter,
-    stream
-  };
+ sourceNodeRef.current[trackId] = {
+   source,
+   gain: channelGain,
+   analyser: trackAnalyser,
+   limiter,
+   stream
+ };
 
   // =========================
   // AUDIO ROUTING
