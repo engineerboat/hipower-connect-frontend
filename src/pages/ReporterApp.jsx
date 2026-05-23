@@ -371,7 +371,7 @@ const [connected, setConnected] = useState(false);
     compressor.connect(destination);
 
     if (audioElementRef.current) {
-      audioElementRef.current.srcObject = destination.stream;
+      audioElementRef.current.srcObject = liveDestination.stream;
     }
 
     // =========================
